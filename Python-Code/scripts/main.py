@@ -48,4 +48,4 @@ while(True):
     roof.assign(values)
     print(roof.getHeatmap())
     cv.imshow('heatmap',roof.getHeatmap())
-    cv.waitKey(100)
+    cv.waitKey(10)
