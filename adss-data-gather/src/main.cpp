@@ -53,10 +53,12 @@ void loop()
 
   for(int i = 0; i < sizeof(data_array)/sizeof(data_array[0]); i++)
   {
-    /* 0 is saved for the index */
+    /* Remap 2^10 to 2^8 because serial write() func takes a char (uint8_t) */
     c_uart_val = uint8_t(map(data_array[i], 0, 4095, ARRAY_SIZE, 255));
+    /* range of nums: 0..12 is saved for the index, also sent over uart. */
     hwSerial.write(uint8_t(i));
     hwSerial.write(c_uart_val);
+    /* DEBUG */
     delay(100);
   }
 
