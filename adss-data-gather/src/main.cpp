@@ -35,8 +35,6 @@ int init_mov=0;
 
 int pwm=0;
 
-int prev_pos = -1;
-
 int fwd_pin = 23;
 int bck_pin = 22;
 int pwm_pin = 5; 
@@ -69,6 +67,7 @@ int actual_pos = -1 ;
 #define fs2   data_array[2]
 #define fs3   data_array[3]
 
+unsigned long saved_time;
 
 void setup()
 {
@@ -88,9 +87,11 @@ void setup()
 	ESP32PWM::allocateTimer(1);
 	ESP32PWM::allocateTimer(2);
 	ESP32PWM::allocateTimer(3);
-	myservo.setPeriodHertz(50);    // standard 50 hz servo
+	
+  myservo.setPeriodHertz(50);    // standard 50 hz servo
 	myservo.attach(servo_pin, 500, 2400); // attaches the servo on pin 13 to the servo object
-
+  
+  saved_time = millis();
 }
 
 void loop()
@@ -118,6 +119,7 @@ void loop()
 
   int pot = analogRead(15);
 
+
   for(int i = 0; i < sizeof(data_array)/sizeof(data_array[0]); i++)
   {
     /* Remap 2^10 to 2^8 because serial write() func takes a char (uint8_t) */
@@ -126,17 +128,20 @@ void loop()
     hwSerial.write(uint8_t(i));
     hwSerial.write(c_uart_val);
     /* DEBUG */
-    delay(100);
+    delay(10);
   }
 
   //SPEED  -------------------------------------------
+  printf( "POT: %d " , pot );
   if(pot>10)
   {
     //FRONT
-    digitalWrite(fwd_pin,HIGH);
+    digitalWrite(fwd_pin,LOW);
     digitalWrite(bck_pin,LOW);
     pwm = map(pot,0,4095,0,255);
-    ledcWrite(pwmChannel,pwm);
+    //ledcWrite(pwmChannel,pwm);
+    //printf(" PWM:%d " , pwm);
+    
   }
   else
   {
@@ -145,10 +150,10 @@ void loop()
   }
 
   //STEERING ---------------------------------------------
-  if(actual_pos ==-1)
+  if(actual_pos == -1)
   {
     actual_pos = 90 ;
-    myservo.write(pos); 
+    myservo.write(actual_pos);
   }
 
   // pos = map(pot,0,4095,45,120);
@@ -172,26 +177,30 @@ void loop()
   {
     printf("    --- DARKNESS MODE --");
 
+  
     //GO STRAIGHT
     if (actual_pos != 90)
     {
       if (actual_pos < 90)
       {
-        for( int i = actual_pos ; i < 90 ; i++ )
+        if ( millis() > saved_time + 10 )
         {
-          myservo.write(pos);
-          delay(100);
-        }
+          actual_pos++;
+          myservo.write(actual_pos);
+          saved_time = millis();
+          //printf("    --- POS : %d --",actual_pos);
+        } 
       }
       else
       {
-        for( int i = actual_pos ; i > 90 ; i-- )
+        if ( millis() > saved_time + 10 )
         {
-          myservo.write(pos);
-          delay(100);
+          actual_pos--;
+          myservo.write(actual_pos);
+          saved_time = millis();
+          //printf("    --- POS : %d --",actual_pos);
         }
       }
-      actual_pos = 90 ;
     }
     
     if(darkness_counter > min_thres)
@@ -237,6 +246,11 @@ void loop()
            s2 > s9 + min_thres  )
   {
     printf(" --- S2_MAX -> Move FRONT                ");
+    
+    digitalWrite(fwd_pin,LOW);
+    digitalWrite(bck_pin,HIGH);
+    
+
     // if (init_mov == 0 )
     // {
     //   printf(" --- S2_MAX -> Move FRONT                ");
@@ -293,26 +307,30 @@ void loop()
 
       //moving
 
-      //MOVE TO LEFT
-      if (actual_pos != 45 )
+      //MOVE LEFT
+      //GO STRAIGHT
+      if (actual_pos != 45)
       {
         if (actual_pos < 45)
         {
-          for( int i = actual_pos ; i < 45 ; i++ )
+          if ( millis() > saved_time + 10 )
           {
-            myservo.write(pos);
-            delay(100);
-          }
+            actual_pos++;
+            myservo.write(actual_pos);
+            saved_time = millis();
+            printf("    --- POS : %d --",actual_pos);
+          } 
         }
         else
         {
-          for( int i = actual_pos ; i > 45 ; i-- )
+          if ( millis() > saved_time + 10 )
           {
-            myservo.write(pos);
-            delay(100);
+            actual_pos--;
+            myservo.write(actual_pos);
+            saved_time = millis();
+            printf("    --- POS : %d --",actual_pos);
           }
         }
-        actual_pos = 45 ;
       }
 
 
@@ -334,7 +352,32 @@ void loop()
            s5 > s8 + min_thres && 
            s5 > s9 + min_thres  )
   {
-    if (init_mov == 0 )
+    //GO STRAIGHT
+    if (actual_pos != 90)
+    {
+      if (actual_pos < 90)
+      {
+        if ( millis() > saved_time + 10 )
+        {
+          actual_pos++;
+          myservo.write(actual_pos);
+          saved_time = millis();
+          printf("    --- POS : %d --",actual_pos);
+        } 
+      }
+      else
+      {
+        if ( millis() > saved_time + 10 )
+        {
+          actual_pos--;
+          myservo.write(actual_pos);
+          saved_time = millis();
+          printf("    --- POS : %d --",actual_pos);
+        }
+      }
+    }
+
+    else if (init_mov == 0 && actual_pos==90 )
     {
       printf(" --- CENTER REACHED ---          ");
       //moving
@@ -353,25 +396,28 @@ void loop()
     printf(" --- S6_MAX -> Move to the RIGHT          ");
     
     //MOVE TO LEFT
-    if (actual_pos != 125 )
+    if (actual_pos != 125)
     {
       if (actual_pos < 125)
       {
-        for( int i = actual_pos ; i < 125 ; i++ )
+        if ( millis() > saved_time + 10 )
         {
-          myservo.write(pos);
-          delay(100);
-        }
+          actual_pos++;
+          myservo.write(actual_pos);
+          saved_time = millis();
+          printf("    --- POS : %d --",actual_pos);
+        } 
       }
       else
       {
-        for( int i = actual_pos ; i > 125 ; i-- )
+        if ( millis() > saved_time + 10 )
         {
-          myservo.write(pos);
-          delay(100);
+          actual_pos--;
+          myservo.write(actual_pos);
+          saved_time = millis();
+          printf("    --- POS : %d --",actual_pos);
         }
       }
-      actual_pos = 125 ;
     }
 
     else if (s5 > s6 + min_thres)
@@ -418,7 +464,8 @@ void loop()
     {
       printf(" --- S8_MAX -> Move BACK          ");
 
-      //moving
+       digitalWrite(fwd_pin,HIGH);
+        digitalWrite(bck_pin,LOW);
     }
     else if (s5 > s8 + min_thres)
     {
@@ -453,7 +500,6 @@ void loop()
 
   printf("           \r");
   fflush(stdout);
-  delay(100);
 
   //MOVE THE SERVO
 
