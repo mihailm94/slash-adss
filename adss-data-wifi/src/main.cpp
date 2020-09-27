@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <SoftwareSerial.h>
 /* Defines the "buffer" size */
 #define AREST_NUMBER_VARIABLES 13
 #include <aREST.h>
@@ -25,15 +26,26 @@ WiFiServer server(LISTEN_PORT);
  * data_array[1..3] - front sensors value
  * data_array[4..12] - up sensors value
  */
-int data_array[13] = { 0 };
-
-int mode = 0;
+uint8_t data_array[13] = { 0 };
+uint8_t tx_val = 0;
+uint8_t mode = 0;
 
 /* Values coming from GPIOs */
-int s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13;
+uint8_t s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13;
+
+
+/* Passed to swSerial constructor */
+SoftwareSerialConfig swSerialConfig = SWSERIAL_8N1;
+/* SW emulated UART - pins 19, 18 */
+#define WORKER_TX   17
+#define WORKER_RX   16
+
+/* WORKER_RX - 16, WORKER_TX - 17 */
+HardwareSerial hwSerial(2);
 
 void setup() {
   Serial.begin(115200);
+  hwSerial.begin(115200);
 
   /* Expose variables to REST API */
   rest.variable("mode",         &data_array[0]);
@@ -56,11 +68,13 @@ void setup() {
 
   /* Avoid any existing connections */
   WiFi.disconnect();
+
   /* If configuring with static IP did not work, use a DHCP assigned IP */
   if( false == WiFi.config(staticIP, gateway, subnet, dns, dns) )
   {
     Serial.println("Static IP config failed.");
   }
+
   /* Initiate wifi connection to specified ssid and pass */
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED)
@@ -74,7 +88,7 @@ void setup() {
   /* Begin server */
   server.begin();
   Serial.println("Server started");
-
+ 
   /* Print connection information */
   Serial.print("Local IP: ");
   Serial.println(WiFi.localIP());
@@ -86,35 +100,36 @@ void setup() {
   Serial.println(WiFi.dnsIP(0));
   Serial.print("DNS 2: ");
   Serial.println(WiFi.dnsIP(1));
+ 
 }
 
 void loop() {
 
   WiFiClient client = server.available();
-  if( !client )
+
+  /* No need to ask if available, the read() function does it */
+  if(hwSerial.available())
   {
-    return;
+    tx_val = uint8_t(hwSerial.read());
+    /* Received value is an array index */
+    if( 0 <= tx_val && 12 >= tx_val )
+    {
+      /* Next read is value from sensor */
+      data_array[tx_val] = uint8_t(hwSerial.read());
+    }
+    else
+    {
+      /* We assume the value is garbage.
+       * Do not update what is in array already.
+       * EMPTY ELSE
+       */
+    }
   }
-  while( !client.available() )
-  {
-  }
-  
-  /* Gather data from Pins */
-  data_array[4] = 4095 - analogRead(36);
-  data_array[5] = 4095 - analogRead(39);
-  data_array[6] = 4095 - analogRead(34);
-  data_array[7] = 4095 - analogRead(35);
-  data_array[8] = 4095 - analogRead(32);
-  data_array[9] = 4095 - analogRead(33);
-  data_array[10] = 4095 - analogRead(25);
-  data_array[11] = 4095 - analogRead(26);
-  data_array[12] = 4095 - analogRead(27);
-  data_array[0] = mode;
-  data_array[1] = 4095 - analogRead(14);
-  data_array[2] = 4095 - analogRead(12);
-  data_array[3] = 4095 - analogRead(4);
 
   /* Serve data array at REST GET */
-  rest.handle(client);
+  if( client.available() )
+  {
+    rest.handle(client);
+  }
 
 }
